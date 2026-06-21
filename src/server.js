@@ -1,16 +1,9 @@
 require("dotenv").config();
 
-const express = require("express");
 const { connectDB, disconnectDB } = require("./config/db");
+const app = require("./app");
 
-const app = express();
 const PORT = process.env.PORT || 5000;
-
-app.use(express.json());
-
-app.get("/", (req, res) => {
-  res.send("Blog Site Backend!");
-});
 
 let server;
 let isShuttingDown = false;
