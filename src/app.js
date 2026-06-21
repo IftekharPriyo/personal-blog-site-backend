@@ -4,6 +4,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 
 const authRoutes = require("./routes/authRoutes");
+const articleRoutes = require("./routes/articleRoutes");
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/articles", articleRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
