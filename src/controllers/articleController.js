@@ -10,19 +10,6 @@ const optionalText = (maxLength) =>
     z.string().trim().max(maxLength).nullable().optional(),
   );
 
-const optionalDate = z.preprocess(
-  (value) => (value === "" ? null : value),
-  z
-    .union([
-      z
-        .string()
-        .refine((value) => !Number.isNaN(Date.parse(value)), "A valid date is required")
-        .transform((value) => new Date(value)),
-      z.null(),
-    ])
-    .optional(),
-);
-
 const articleSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   slug: z
@@ -47,7 +34,6 @@ const articleSchema = z.object({
   categoryId: z.string().uuid("A valid category ID is required"),
   tagIds: z.array(z.string().uuid("Each tag ID must be valid")).max(50).default([]),
   newTags: z.array(z.string().trim().min(1).max(50)).max(20).default([]),
-  publishedAt: optionalDate,
 });
 
 const articleInclude = {
@@ -141,10 +127,10 @@ async function resolveTagIds(tx, tagIds, newTags) {
   return [...new Set(uniqueTagIds)];
 }
 
-function getPublishedAt(data, existingPublishedAt = null) {
-  if (data.publishedAt !== undefined) return data.publishedAt;
-  if (data.status === "PUBLISHED") return existingPublishedAt || new Date();
-  return existingPublishedAt;
+function getPublishedAt(status, existingArticle = null) {
+  if (status !== "PUBLISHED") return existingArticle?.publishedAt ?? null;
+  if (existingArticle?.status === "PUBLISHED") return existingArticle.publishedAt;
+  return new Date();
 }
 
 function articleData(data, publishedAt) {
@@ -189,6 +175,25 @@ async function listArticles(req, res, next) {
   }
 }
 
+async function listArticleOptions(req, res, next) {
+  try {
+    const [categories, tags] = await Promise.all([
+      prisma.category.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.tag.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+
+    return res.json({ categories, tags });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 async function getArticle(req, res, next) {
   try {
     const article = await prisma.blogPost.findUnique({
@@ -214,7 +219,7 @@ async function createArticle(req, res, next) {
 
       return tx.blogPost.create({
         data: {
-          ...articleData(parsed.data, getPublishedAt(parsed.data)),
+          ...articleData(parsed.data, getPublishedAt(parsed.data.status)),
           authorId: req.user.id,
           tags: {
             create: tagIds.map((tagId) => ({ tag: { connect: { id: tagId } } })),
@@ -241,7 +246,7 @@ async function updateArticle(req, res, next) {
     const article = await prisma.$transaction(async (tx) => {
       const existingArticle = await tx.blogPost.findUnique({
         where: { id: req.params.id },
-        select: { id: true, publishedAt: true },
+        select: { id: true, status: true, publishedAt: true },
       });
 
       if (!existingArticle) throw new RequestError(404, "Article not found");
@@ -254,7 +259,7 @@ async function updateArticle(req, res, next) {
         data: {
           ...articleData(
             parsed.data,
-            getPublishedAt(parsed.data, existingArticle.publishedAt),
+            getPublishedAt(parsed.data.status, existingArticle),
           ),
           tags: {
             deleteMany: {},
@@ -287,6 +292,7 @@ module.exports = {
   createArticle,
   deleteArticle,
   getArticle,
+  listArticleOptions,
   listArticles,
   updateArticle,
 };
