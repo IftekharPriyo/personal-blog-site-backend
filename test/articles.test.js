@@ -69,7 +69,6 @@ function validPayload(overrides = {}) {
     categoryId,
     tagIds: [tagId],
     newTags: [],
-    publishedAt: null,
     ...overrides,
   };
 }
@@ -80,6 +79,8 @@ before(async () => {
     articleFindMany: prisma.blogPost.findMany,
     articleFindUnique: prisma.blogPost.findUnique,
     articleDelete: prisma.blogPost.delete,
+    categoryFindMany: prisma.category.findMany,
+    tagFindMany: prisma.tag.findMany,
     transaction: prisma.$transaction,
   };
 
@@ -93,6 +94,8 @@ beforeEach(() => {
   prisma.blogPost.findMany = originals.articleFindMany;
   prisma.blogPost.findUnique = originals.articleFindUnique;
   prisma.blogPost.delete = originals.articleDelete;
+  prisma.category.findMany = originals.categoryFindMany;
+  prisma.tag.findMany = originals.tagFindMany;
   prisma.$transaction = originals.transaction;
 });
 
@@ -101,6 +104,8 @@ after(async () => {
   prisma.blogPost.findMany = originals.articleFindMany;
   prisma.blogPost.findUnique = originals.articleFindUnique;
   prisma.blogPost.delete = originals.articleDelete;
+  prisma.category.findMany = originals.categoryFindMany;
+  prisma.tag.findMany = originals.tagFindMany;
   prisma.$transaction = originals.transaction;
 
   await new Promise((resolve, reject) => {
@@ -136,6 +141,20 @@ test("GET /api/articles/:id returns 404 when the article does not exist", async 
 
   assert.equal(response.status, 404);
   assert.deepEqual(await response.json(), { message: "Article not found" });
+});
+
+test("GET /api/articles/options returns category and tag choices", async () => {
+  prisma.category.findMany = async () => [{ id: categoryId, name: "Tech" }];
+  prisma.tag.findMany = async () => [{ id: tagId, name: "Node.js" }];
+
+  const response = await fetch(`${baseUrl}/api/articles/options`, {
+    headers: authHeaders(),
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.categories, [{ id: categoryId, name: "Tech" }]);
+  assert.deepEqual(body.tags, [{ id: tagId, name: "Node.js" }]);
 });
 
 test("POST /api/articles validates request data", async () => {
@@ -220,7 +239,7 @@ test("PUT /api/articles/:id replaces fields and tag relationships", async () => 
         create: async () => ({ id: tagId }),
       },
       blogPost: {
-        findUnique: async () => ({ id: articleId, publishedAt: null }),
+        findUnique: async () => ({ id: articleId, status: "DRAFT", publishedAt: null }),
         update: async (args) => {
           updateArgs = args;
           return databaseArticle({ title: "Updated article", status: "PUBLISHED" });
@@ -232,7 +251,7 @@ test("PUT /api/articles/:id replaces fields and tag relationships", async () => 
     method: "PUT",
     headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify(
-      validPayload({ title: "Updated article", status: "PUBLISHED", publishedAt: undefined }),
+      validPayload({ title: "Updated article", status: "PUBLISHED" }),
     ),
   });
   const body = await response.json();
