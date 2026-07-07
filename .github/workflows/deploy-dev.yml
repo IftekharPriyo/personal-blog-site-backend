@@ -34,6 +34,7 @@ jobs:
             "$EC2_USER@$EC2_HOST" \
             "EC2_BACKEND_DIR='$EC2_BACKEND_DIR' PM2_BACKEND_NAME='$PM2_BACKEND_NAME' bash -s" <<'EOF'
           set -euo pipefail
+          export CI=true
 
           APP_DIR="${EC2_BACKEND_DIR:-$HOME/personal-blog-site-backend}"
           PM2_NAME="${PM2_BACKEND_NAME:-personal-blog-site-backend}"
