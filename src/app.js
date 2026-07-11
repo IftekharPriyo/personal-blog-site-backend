@@ -6,6 +6,7 @@ const helmet = require("helmet");
 const authRoutes = require("./routes/authRoutes");
 const articleRoutes = require("./routes/articleRoutes");
 const publicPostRoutes = require("./routes/publicPostRoutes");
+const uploadRoutes = require("./routes/uploadRoutes");
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/articles", articleRoutes);
 app.use("/api/posts", publicPostRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
