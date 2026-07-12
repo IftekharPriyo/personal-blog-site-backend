@@ -20,6 +20,7 @@ function serializePost(post, includeContent = false) {
     slug: post.slug,
     excerpt: post.excerpt,
     coverImage: post.coverImage,
+    featured: post.featured,
     publishedAt: post.publishedAt,
     updatedAt: post.updatedAt,
     category: post.category,

@@ -31,6 +31,7 @@ const articleSchema = z.object({
     z.string().trim().url("Cover image must be a valid URL").max(2048).nullable().optional(),
   ),
   status: z.enum(POST_STATUSES).default("DRAFT"),
+  featured: z.boolean().default(false),
   categoryId: z.string().uuid("A valid category ID is required"),
   tagIds: z.array(z.string().uuid("Each tag ID must be valid")).max(50).default([]),
   newTags: z.array(z.string().trim().min(1).max(50)).max(20).default([]),
@@ -141,6 +142,7 @@ function articleData(data, publishedAt) {
     content: data.content,
     coverImage: data.coverImage ?? null,
     status: data.status,
+    featured: data.featured,
     categoryId: data.categoryId,
     publishedAt,
   };

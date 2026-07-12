@@ -19,6 +19,7 @@ function publishedPost() {
     content: "## Hello\n\nThis is published content.",
     coverImage: null,
     status: "PUBLISHED",
+    featured: true,
     publishedAt: new Date("2026-07-05T10:00:00.000Z"),
     updatedAt: new Date("2026-07-05T10:00:00.000Z"),
     category: { id: "category-id", name: "Tech", slug: "tech" },
@@ -55,6 +56,7 @@ test("GET /api/posts returns published post summaries without authentication", a
   assert.equal(response.status, 200);
   assert.equal(query.where.status, "PUBLISHED");
   assert.equal(body.posts[0].slug, "published-mdx");
+  assert.equal(body.posts[0].featured, true);
   assert.equal(body.posts[0].content, undefined);
 });
 
