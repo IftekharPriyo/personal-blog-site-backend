@@ -45,6 +45,7 @@ function databaseArticle(overrides = {}) {
     content: "## Hello\n\n<Callout>Stored as MDX.</Callout>",
     coverImage: null,
     status: "DRAFT",
+    featured: false,
     authorId: admin.id,
     categoryId,
     travelCountryId: null,
@@ -66,6 +67,7 @@ function validPayload(overrides = {}) {
     content: "## Hello\n\n<Callout>Stored as MDX.</Callout>",
     coverImage: "https://example.com/cover.jpg",
     status: "DRAFT",
+    featured: false,
     categoryId,
     tagIds: [tagId],
     newTags: [],
@@ -204,6 +206,7 @@ test("POST /api/articles creates an article without changing its MDX", async () 
   assert.equal(response.status, 201);
   assert.equal(createArgs.data.content, mdx);
   assert.equal(createArgs.data.authorId, admin.id);
+  assert.equal(createArgs.data.featured, false);
   assert.equal(createArgs.data.tags.create[0].tag.connect.id, tagId);
   assert.equal(body.article.content, mdx);
 });
@@ -251,13 +254,14 @@ test("PUT /api/articles/:id replaces fields and tag relationships", async () => 
     method: "PUT",
     headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify(
-      validPayload({ title: "Updated article", status: "PUBLISHED" }),
+      validPayload({ title: "Updated article", status: "PUBLISHED", featured: true }),
     ),
   });
   const body = await response.json();
 
   assert.equal(response.status, 200);
   assert.equal(updateArgs.data.title, "Updated article");
+  assert.equal(updateArgs.data.featured, true);
   assert.ok(updateArgs.data.publishedAt instanceof Date);
   assert.deepEqual(updateArgs.data.tags.deleteMany, {});
   assert.equal(body.article.title, "Updated article");
