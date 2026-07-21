@@ -82,3 +82,32 @@ test("cover image upload returns a clear error when S3 is not configured", async
   assert.equal(response.status, 503);
   assert.match(body.message, /S3 uploads are not configured/);
 });
+
+test("article image upload requires authentication", async () => {
+  const response = await fetch(`${baseUrl}/api/uploads/article-image`, {
+    method: "POST",
+  });
+
+  assert.equal(response.status, 401);
+});
+
+test("article image upload returns a clear error when S3 is not configured", async () => {
+  const formData = new FormData();
+  formData.append(
+    "image",
+    new Blob(["not really an image"], { type: "image/png" }),
+    "article.png",
+  );
+
+  const response = await fetch(`${baseUrl}/api/uploads/article-image`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token()}`,
+    },
+    body: formData,
+  });
+  const body = await response.json();
+
+  assert.equal(response.status, 503);
+  assert.match(body.message, /S3 uploads are not configured/);
+});
