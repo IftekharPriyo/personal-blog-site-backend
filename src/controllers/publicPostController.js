@@ -6,6 +6,12 @@ const visitorSchema = z.object({
   visitorId: z.string().uuid("A valid visitor ID is required"),
 });
 
+const listQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(24).default(10),
+  featured: z.enum(["true", "false"]).optional(),
+});
+
 const publicInclude = {
   category: { select: { id: true, name: true, slug: true } },
   tags: {
@@ -168,14 +174,70 @@ async function unlovePublishedPost(req, res, next) {
 }
 
 async function listPublishedPosts(req, res, next) {
+  const parsed = listQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ message: "Invalid pagination parameters" });
+  }
+
+  const { page, limit, featured } = parsed.data;
+  const where = {
+    status: "PUBLISHED",
+    ...(featured ? { featured: featured === "true" } : {}),
+  };
+  const orderBy = [{ publishedAt: "desc" }, { updatedAt: "desc" }, { id: "desc" }];
+
+  try {
+    const [posts, totalItems] = await Promise.all([
+      prisma.blogPost.findMany({
+        where,
+        include: publicInclude,
+        orderBy,
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.blogPost.count({ where }),
+    ]);
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return res.json({
+      posts: posts.map((post) => serializePost(post)),
+      pagination: {
+        page,
+        pageSize: limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function listPublishedPostTopics(req, res, next) {
   try {
     const posts = await prisma.blogPost.findMany({
       where: { status: "PUBLISHED" },
-      include: publicInclude,
-      orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+      select: {
+        tags: {
+          select: { tag: { select: { name: true } } },
+        },
+      },
+    });
+    const counts = new Map();
+
+    posts.forEach((post) => {
+      post.tags.forEach(({ tag }) => {
+        counts.set(tag.name, (counts.get(tag.name) ?? 0) + 1);
+      });
     });
 
-    return res.json({ posts: posts.map((post) => serializePost(post)) });
+    const topics = Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return res.json({ topics });
   } catch (error) {
     return next(error);
   }
@@ -198,6 +260,7 @@ async function getPublishedPost(req, res, next) {
 module.exports = {
   getPublishedPost,
   getPublishedPostLove,
+  listPublishedPostTopics,
   listPublishedPosts,
   lovePublishedPost,
   trackPublishedPostView,

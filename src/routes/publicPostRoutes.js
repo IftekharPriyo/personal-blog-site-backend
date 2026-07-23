@@ -2,6 +2,7 @@ const express = require("express");
 const {
   getPublishedPost,
   getPublishedPostLove,
+  listPublishedPostTopics,
   listPublishedPosts,
   lovePublishedPost,
   trackPublishedPostView,
@@ -11,6 +12,7 @@ const {
 const router = express.Router();
 
 router.get("/", listPublishedPosts);
+router.get("/topics", listPublishedPostTopics);
 router.post("/:slug/view", trackPublishedPostView);
 router.get("/:slug/love", getPublishedPostLove);
 router.put("/:slug/love", lovePublishedPost);
