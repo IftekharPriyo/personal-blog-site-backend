@@ -9,6 +9,7 @@ let baseUrl;
 let server;
 let originalFindMany;
 let originalFindFirst;
+let originalCount;
 let originalViewUpsert;
 let originalViewCount;
 let originalLoveFindUnique;
@@ -37,6 +38,7 @@ function publishedPost() {
 before(async () => {
   originalFindMany = prisma.blogPost.findMany;
   originalFindFirst = prisma.blogPost.findFirst;
+  originalCount = prisma.blogPost.count;
   originalViewUpsert = prisma.blogPostView.upsert;
   originalViewCount = prisma.blogPostView.count;
   originalLoveFindUnique = prisma.blogPostLove.findUnique;
@@ -51,6 +53,7 @@ before(async () => {
 after(async () => {
   prisma.blogPost.findMany = originalFindMany;
   prisma.blogPost.findFirst = originalFindFirst;
+  prisma.blogPost.count = originalCount;
   prisma.blogPostView.upsert = originalViewUpsert;
   prisma.blogPostView.count = originalViewCount;
   prisma.blogPostLove.findUnique = originalLoveFindUnique;
@@ -68,17 +71,106 @@ test("GET /api/posts returns published post summaries without authentication", a
     query = args;
     return [publishedPost()];
   };
+  prisma.blogPost.count = async (args) => {
+    assert.deepEqual(args.where, { status: "PUBLISHED" });
+    return 1;
+  };
 
   const response = await fetch(`${baseUrl}/api/posts`);
   const body = await response.json();
 
   assert.equal(response.status, 200);
   assert.equal(query.where.status, "PUBLISHED");
+  assert.equal(query.skip, 0);
+  assert.equal(query.take, 10);
+  assert.deepEqual(query.orderBy, [
+    { publishedAt: "desc" },
+    { updatedAt: "desc" },
+    { id: "desc" },
+  ]);
   assert.equal(body.posts[0].slug, "published-mdx");
   assert.equal(body.posts[0].featured, true);
   assert.equal(body.posts[0].viewCount, 12);
   assert.equal(body.posts[0].loveCount, 4);
   assert.equal(body.posts[0].content, undefined);
+  assert.deepEqual(body.pagination, {
+    page: 1,
+    pageSize: 10,
+    totalItems: 1,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPreviousPage: false,
+  });
+});
+
+test("GET /api/posts supports pagination and featured filtering", async () => {
+  let findManyArgs;
+  let countArgs;
+
+  prisma.blogPost.findMany = async (args) => {
+    findManyArgs = args;
+    return [publishedPost()];
+  };
+  prisma.blogPost.count = async (args) => {
+    countArgs = args;
+    return 13;
+  };
+
+  const response = await fetch(
+    `${baseUrl}/api/posts?page=3&limit=5&featured=true`,
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(findManyArgs.where, {
+    status: "PUBLISHED",
+    featured: true,
+  });
+  assert.deepEqual(countArgs.where, {
+    status: "PUBLISHED",
+    featured: true,
+  });
+  assert.equal(findManyArgs.skip, 10);
+  assert.equal(findManyArgs.take, 5);
+  assert.deepEqual(body.pagination, {
+    page: 3,
+    pageSize: 5,
+    totalItems: 13,
+    totalPages: 3,
+    hasNextPage: false,
+    hasPreviousPage: true,
+  });
+});
+
+test("GET /api/posts rejects invalid pagination parameters", async () => {
+  const response = await fetch(`${baseUrl}/api/posts?page=0&limit=100`);
+  assert.equal(response.status, 400);
+});
+
+test("GET /api/posts/topics returns global published topic counts", async () => {
+  prisma.blogPost.findMany = async (args) => {
+    assert.deepEqual(args.where, { status: "PUBLISHED" });
+    return [
+      {
+        tags: [
+          { tag: { name: "AWS" } },
+          { tag: { name: "Node.js" } },
+        ],
+      },
+      {
+        tags: [{ tag: { name: "AWS" } }],
+      },
+    ];
+  };
+
+  const response = await fetch(`${baseUrl}/api/posts/topics`);
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.topics, [
+    { name: "AWS", count: 2 },
+    { name: "Node.js", count: 1 },
+  ]);
 });
 
 test("GET /api/posts/:slug returns published MDX content", async () => {
