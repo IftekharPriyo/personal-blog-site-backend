@@ -12,6 +12,27 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Get GitHub runner IP
+        id: runner-ip
+        run: echo "ipv4=$(curl -s https://checkip.amazonaws.com)" >> "$GITHUB_OUTPUT"
+
+      - name: Allow GitHub runner SSH
+        run: |
+          set -euo pipefail
+
+          aws ec2 authorize-security-group-ingress \
+            --group-id "${{ secrets.EC2_SECURITY_GROUP_ID }}" \
+            --protocol tcp \
+            --port "${{ secrets.EC2_PORT || '22' }}" \
+            --cidr "${{ steps.runner-ip.outputs.ipv4 }}/32"
+
       - name: Deploy over SSH
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
@@ -59,3 +80,14 @@ jobs:
           pm2 restart "$PM2_NAME" --update-env
           pm2 save
           EOF
+
+      - name: Remove GitHub runner SSH
+        if: always()
+        run: |
+          set -euo pipefail
+
+          aws ec2 revoke-security-group-ingress \
+            --group-id "${{ secrets.EC2_SECURITY_GROUP_ID }}" \
+            --protocol tcp \
+            --port "${{ secrets.EC2_PORT || '22' }}" \
+            --cidr "${{ steps.runner-ip.outputs.ipv4 }}/32" || true
